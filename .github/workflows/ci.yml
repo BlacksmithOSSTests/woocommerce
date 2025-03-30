@@ -107,6 +107,7 @@ jobs:
 
       - name: 'Install WordPress test environment'
         run: |
+          chmod +x ./tests/bin/install.sh
           bash ./tests/bin/install.sh woocommerce_test root '' 127.0.0.1 latest
 
       - name: 'Run tests'
