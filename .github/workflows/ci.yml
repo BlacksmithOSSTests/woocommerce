@@ -155,7 +155,7 @@ jobs:
     name: '${{ matrix.name }}'
     runs-on: blacksmith-4vcpu-ubuntu-2204
     needs: 'project-jobs'
-    if: ${{ !cancelled() && ( github.event_name != 'pull_request') && needs.project-jobs.outputs.test-jobs != '[]' }}
+    if: ${{ !cancelled() && ( github.event_name != 'pull_request') }}
     env: ${{ matrix.testEnv.envVars }}
     strategy:
       fail-fast: false
