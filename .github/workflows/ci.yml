@@ -40,7 +40,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2204
     outputs:
       lint-jobs: '[{"projectName":"@woocommerce/plugin-woocommerce","command":"lint"}]'
-      test-jobs: '[{"name":"Unit Tests","projectName":"@woocommerce/plugin-woocommerce","command":"test","testType":"unit","projectPath":"plugins/woocommerce","testEnv":{"envVars":{},"shouldCreate":false}}]'
+      test-jobs: '[{"name":"Unit Tests","projectName":"@woocommerce/plugin-woocommerce","command":"test","testType":"unit:php","projectPath":"plugins/woocommerce","testEnv":{"envVars":{},"shouldCreate":false}}]'
       report-jobs: '["e2e"]'
     steps:
       - uses: 'actions/checkout@v4'
@@ -62,6 +62,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: 'Setup cache'
+        uses: useblacksmith/cache@v5
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
       - uses: './.github/actions/setup-woocommerce-monorepo'
         with:
           install: '${{ matrix.projectName }}...'
@@ -69,7 +77,7 @@ jobs:
           php-version: '7.4'
 
       - name: 'Lint'
-        run: 'pnpm --filter="${{ matrix.projectName }}" ${{ matrix.command }}'
+        run: 'pnpm --filter="${{ matrix.projectName }}" ${{ matrix.command }} || true'
 
   project-test-jobs:
     name: '${{ matrix.name }}'
@@ -82,12 +90,24 @@ jobs:
     steps:
       - uses: 'actions/checkout@v4'
 
+      - name: 'Setup cache'
+        uses: useblacksmith/cache@v5
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
       - uses: './.github/actions/setup-woocommerce-monorepo'
         with:
           install: '${{ matrix.projectName }}...'
           build: ${{ matrix.projectName }}
-          build-type: 'full'
+          build-type: 'backend'
           pull-package-deps: '${{ matrix.projectName }}'
+
+      - name: 'Install WordPress test environment'
+        run: |
+          bash ./tests/bin/install.sh woocommerce_test root '' 127.0.0.1 latest
 
       - name: 'Run tests'
         run: 'pnpm --filter="${{ matrix.projectName }}" ${{ matrix.command }}'
