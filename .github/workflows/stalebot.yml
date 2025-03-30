@@ -10,7 +10,7 @@ permissions: {}
 
 jobs:
     stale:
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         permissions:
             contents: read
             issues: write
@@ -114,7 +114,7 @@ jobs:
                       }
 
     remove-draft-approvals:
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         permissions:
             pull-requests: write
         if: github.event_name == 'pull_request' && github.event.action == 'converted_to_draft'

@@ -11,7 +11,7 @@ on:
 jobs:
   analyze:
     name: 'Analyze Branch Changes'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     outputs:
       results: ${{ steps.results.outputs.results }}
     steps:

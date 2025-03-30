@@ -13,7 +13,7 @@ jobs:
     process-pull-request-after-merge:
         name: "Process a pull request after it's merged"
         if: github.event.pull_request.merged == true
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         permissions:
             pull-requests: write
         steps:
@@ -69,7 +69,7 @@ jobs:
 
     process-pull-request-after-close:
         name: "Process a pull request after it's been closed"
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         steps:
             - name: 'Cleanup: GitHub caches associated with the merged branch'
               run: |

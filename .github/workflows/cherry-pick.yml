@@ -33,7 +33,7 @@ permissions: {}
 jobs:
     verify:
         name: Verify
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         outputs:
             run: ${{ steps.check.outputs.run }}
         steps:
@@ -78,7 +78,7 @@ jobs:
 
     prep:
         name: Prep inputs
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         needs: verify
         if: needs.verify.outputs.run == 'true'
         outputs:
@@ -124,7 +124,7 @@ jobs:
                       }
     check-release-branch-exists:
         name: Check for existence of release branch
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         needs: prep
         steps:
             - name: Check for release branch
@@ -140,7 +140,7 @@ jobs:
                       } );
     cherry-pick-run:
         name: Run cherry pick tool
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         permissions:
           actions: write
           contents: write
