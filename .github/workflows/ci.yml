@@ -17,7 +17,8 @@ on:
         type: string
 
 concurrency:
-  group: ci-${{ github.run_id }}-${{ github.ref }}-${{ inputs.trigger }}
+  # Cancel concurrent jobs but not for push event. For push use the run_id to have a unique group.
+  group: ci-${{ github.event_name == 'push' && github.run_id || github.event_name }}-${{ github.ref }}-${{ inputs.trigger }}
   cancel-in-progress: true
 
 env:
@@ -28,138 +29,176 @@ jobs:
     name: 'Analyze changes'
     runs-on: blacksmith-4vcpu-ubuntu-2204
     outputs:
-      needs-code-validation: true
-      needs-changelog-validation: true
-      needs-markdown-validation: true
-      needs-syncpack-validation: true
+      needs-code-validation: ${{ steps.target-changes.outputs.needs-code-validation }}
+      needs-changelog-validation: ${{ steps.target-changes.outputs.needs-changelog-validation }}
+      needs-markdown-validation:  ${{ steps.target-changes.outputs.needs-markdown-validation }}
+      needs-syncpack-validation:  ${{ steps.target-changes.outputs.needs-syncpack-validation }}
     steps:
-      - run: echo "Bypassing change analysis to force all jobs to run"
+      - uses: 'dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36'
+        id: target-changes
+        with:
+          filters: |
+            needs-code-validation:
+              - '!((**/*.md)|(**/changelog/*)|(.github/**)|(.husky/**)|(.cursor/**)|(.gitignore)|(**/readme.txt))'
+            needs-changelog-validation:
+              - '{packages,plugins}/*/!((changelog/*)|(readme.txt))'
+            needs-markdown-validation:
+              - '!(.github/**)/**/*.md'
+            needs-syncpack-validation:
+              - '(.syncpackrc)|(pnpm-lock.yaml)'
 
   project-jobs:
+    # Since this is a monorepo, not every pull request or change is going to impact every project.
+    # Instead of running CI tasks on all projects indiscriminately, we use a command to detect
+    # which projects have changed and what kind of change occurred. This lets us build the
+    # matrices that we can use to run CI tasks only on the projects that need them.
     name: 'Build Project Jobs'
+    needs: 'identify-jobs-to-run'
     runs-on: blacksmith-4vcpu-ubuntu-2204
     outputs:
-      lint-jobs: '[{"projectName":"@woocommerce/plugin-woocommerce","command":"lint"}]'
-      test-jobs: '[{"name":"Unit Tests","projectName":"@woocommerce/plugin-woocommerce","command":"test","testType":"unit:php","projectPath":"plugins/woocommerce","testEnv":{"envVars":{},"shouldCreate":false}}]'
-      report-jobs: '["e2e"]'
+      lint-jobs: ${{ steps.project-jobs.outputs.lint-jobs }}
+      test-jobs: ${{ steps.project-jobs.outputs.test-jobs }}
+      report-jobs: ${{ steps.project-jobs.outputs.report-jobs }}
     steps:
       - uses: 'actions/checkout@v4'
+        name: 'Checkout'
+
       - name: Setup - pnpm
-        uses: 'pnpm/action-setup@v2'
-      - name: Mock job output
-        run: echo "Generating static job list for benchmark purposes"
+        uses: 'pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d'
+
+      - name: Setup - spawn linting and testing jobs
+        uses: actions/github-script@v7
+        id: 'project-jobs'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        with:
+          script: |
+            // Intended behaviour of the jobs generation:
+            // - PRs: run CI jobs aiming PRs and filter out jobs based on the content changes
+            // - Pushes: run CI jobs aiming pushes without filtering based on the content changes
+
+            let prNumberFilter   = '';
+            if ( '${{ github.event_name }}' === 'pull_request' ) {
+              prNumberFilter = `--pr-number ${{ github.event.pull_request.number }}`;
+            }
+
+            let githubEvent = ${{ toJson( github.event_name ) }};
+
+            const refType = ${{ toJson( github.ref_type ) }};
+            const refName = ${{ toJson( github.ref_name ) }};
+                        
+            if ( refType === 'tag' && refName !== 'nightly' ) {
+              githubEvent = 'release-checks';
+            }
+
+            if ( refType === 'tag' && refName === 'nightly' ) {
+              githubEvent = 'nightly-checks';
+            }
+
+            let trigger = ${{ toJson( inputs.trigger ) }};
+            if ( trigger ) {
+              githubEvent = trigger;
+            }
+
+            // `pre-release` should trigger `release-checks`, but without a 'tag' ref. 
+            // This will run all release-checks against the branch the workflow targeted, instead of a release artifact.
+            if ( trigger === 'pre-release' ) {
+              githubEvent = 'release-checks';
+            }
+
+            const child_process = require( 'node:child_process' );
+            child_process.execSync( `pnpm utils ci-jobs ${ prNumberFilter } --event ${ githubEvent }` );
 
   project-lint-jobs:
-    name: "Lint - ${{ matrix.projectName }}"
+    name: "Lint - ${{ matrix.projectName }} ${{ ( matrix.optional && ' (optional)' ) || '' }}"
     runs-on: blacksmith-4vcpu-ubuntu-2204
     needs: 'project-jobs'
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         include: ${{ fromJSON( needs.project-jobs.outputs.lint-jobs ) }}
     steps:
       - uses: 'actions/checkout@v4'
+        name: 'Checkout'
         with:
-          fetch-depth: 0
-
-      - name: 'Setup cache'
-        uses: useblacksmith/cache@v5
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
+          # We tried to speed checkout up with shallow copies, but `git merge-base ...` used on different levels of tooling forces us to follow this approach.
+          fetch-depth: ${{ ( ( matrix.projectName == '@woocommerce/plugin-woocommerce' && '0' ) || '1' ) }}
 
       - uses: './.github/actions/setup-woocommerce-monorepo'
+        id: 'setup-monorepo'
         with:
           install: '${{ matrix.projectName }}...'
           pull-package-deps: '${{ matrix.projectName }}'
-          php-version: '7.4'
+          php-version:  ${{ ( ( matrix.projectName == '@woocommerce/plugin-woocommerce' && '7.4' ) || 'false' ) }}
 
       - name: 'Lint'
-        run: 'pnpm --filter="${{ matrix.projectName }}" ${{ matrix.command }} || true'
+        run: 'pnpm --filter="${{ matrix.projectName }}" ${{ matrix.command }}'
 
   project-test-jobs:
     name: '${{ matrix.name }}'
     runs-on: blacksmith-4vcpu-ubuntu-2204
     needs: 'project-jobs'
+    env: ${{ matrix.testEnv.envVars }}
     strategy:
       fail-fast: false
+      max-parallel: 30
       matrix:
         include: ${{ fromJSON( needs.project-jobs.outputs.test-jobs ) }}
     steps:
       - uses: 'actions/checkout@v4'
-
-      - name: 'Setup cache'
-        uses: useblacksmith/cache@v5
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
+        name: 'Checkout'
 
       - uses: './.github/actions/setup-woocommerce-monorepo'
+        name: 'Install Monorepo'
+        id: 'install-monorepo'
         with:
           install: '${{ matrix.projectName }}...'
           build: ${{ matrix.projectName }}
-          build-type: 'backend'
+          build-type: ${{ ( matrix.testType == 'unit:php' && 'backend' ) || ( matrix.testType == 'unit' && 'dependencies' ) || 'full' }}
+          pull-playwright-cache: ${{ matrix.testEnv.shouldCreate && ( matrix.testType == 'e2e' || matrix.testType == 'performance' ) }}
           pull-package-deps: '${{ matrix.projectName }}'
 
-      - name: 'Install WordPress test environment'
-        run: |
-          chmod +x ./tests/bin/install.sh
-          bash ./tests/bin/install.sh woocommerce_test root '' 127.0.0.1 latest
+      - name: 'Start Test Environment'
+        id: 'prepare-test-environment'
+        if: ${{ matrix.testEnv.shouldCreate }}
+        env: ${{ matrix.testEnv.envVars }}
+        run: 'pnpm --filter="${{ matrix.projectName }}" ${{ matrix.testEnv.start }}'
 
-      - name: 'Run tests'
-        run: 'pnpm --filter="${{ matrix.projectName }}" ${{ matrix.command }}'
+      - name: 'Run tests (${{ matrix.testType }})'
+        env:
+          WC_VERSION: ${{ inputs.wc-version }}
+        run: |
+          pnpm --filter="${{ matrix.projectName }}" ${{ matrix.command }}
 
   evaluate-project-jobs:
+    # In order to add a required status check we need a consistent job that we can grab onto.
+    # Since we are dynamically generating a matrix for the project jobs, however, we can't
+    # rely on any specific job being present. We can get around this limitation by
+    # using a job that runs after all the others and either passes or fails based
+    # on the results of the other jobs in the workflow.
     name: 'Evaluate Project Job Statuses'
-    runs-on: blacksmith-4vcpu-ubuntu-2204
-    needs: [ 'identify-jobs-to-run', 'project-jobs', 'project-lint-jobs', 'project-test-jobs' ]
-    steps:
-      - name: 'Evaluation'
-        run: echo "Skipping evaluation for benchmarking"
-
-  validate-syncpack:
-    name: 'Validate dependencies version'
-    runs-on: blacksmith-4vcpu-ubuntu-2204
+    runs-on: ubuntu-latest
+    needs: [ 'identify-jobs-to-run', 'project-jobs', 'project-lint-jobs', 'project-test-jobs', 'validate-changelog', 'validate-markdown', 'validate-syncpack' ]
     steps:
       - uses: 'actions/checkout@v4'
-      - name: Setup - node
-        uses: 'useblacksmith/setup-node@v5'
+        name: 'Checkout'
         with:
-          node-version-file: .nvmrc
-      - run: npm install -g syncpack@^10.9.3
-      - run: syncpack list-mismatches || echo "Ignoring mismatches for benchmarking"
+          sparse-checkout: |
+              .github/workflows/scripts
 
-  validate-changelog:
-    name: 'Validate changelog'
-    runs-on: blacksmith-4vcpu-ubuntu-2204
-    steps:
-      - uses: 'actions/checkout@v4'
-      - run: echo "Skipping changelog validation for benchmarking"
+      - name: 'Evaluation'
+        env:
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if project-jobs was successful. Fail for any other status, including skipped.
+          result="${{ needs.project-jobs.result }}"
+          if [[ $result != "success" ]]; then
+            echo "Generating CI jobs was not successful."
+            exit 1
+          fi
 
-  validate-markdown:
-    name: 'Validate markdown'
-    runs-on: blacksmith-4vcpu-ubuntu-2204
-    steps:
-      - uses: 'actions/checkout@v4'
-      - run: echo "Skipping markdown validation for benchmarking"
-
-  test-reports:
-    name: 'Test reports - ${{ matrix.report }}'
-    runs-on: blacksmith-4vcpu-ubuntu-2204
-    needs: ['project-jobs', 'project-test-jobs']
-    strategy:
-      matrix:
-        report: ["e2e"]
-    steps:
-      - run: echo "Skipping test report publishing for benchmarking"
-
-  report-flaky-tests:
-    name: 'Create issues for flaky tests'
-    runs-on: blacksmith-4vcpu-ubuntu-2204
-    needs: ['project-jobs', 'project-test-jobs']
-    steps:
-      - run: echo "Skipping flaky test reporting for benchmarking"
+          node .github/workflows/scripts/evaluate-jobs-conclusions.js
