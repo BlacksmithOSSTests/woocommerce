@@ -117,7 +117,7 @@ jobs:
   project-lint-jobs:
     name: "Lint - ${{ matrix.projectName }} ${{ ( matrix.optional && ' (optional)' ) || '' }}"
     runs-on: blacksmith-4vcpu-ubuntu-2204
-    needs: 'project-jobs'
+    needs: [ 'identify-jobs-to-run', 'project-jobs' ]
     strategy:
       fail-fast: false
       max-parallel: 4
