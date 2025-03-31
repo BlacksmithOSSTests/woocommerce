@@ -172,33 +172,3 @@ jobs:
         run: |
           pnpm --filter="${{ matrix.projectName }}" ${{ matrix.command }}
 
-  evaluate-project-jobs:
-    # In order to add a required status check we need a consistent job that we can grab onto.
-    # Since we are dynamically generating a matrix for the project jobs, however, we can't
-    # rely on any specific job being present. We can get around this limitation by
-    # using a job that runs after all the others and either passes or fails based
-    # on the results of the other jobs in the workflow.
-    name: 'Evaluate Project Job Statuses'
-    runs-on: ubuntu-latest
-    needs: [ 'identify-jobs-to-run', 'project-jobs', 'project-lint-jobs', 'project-test-jobs', 'validate-changelog', 'validate-markdown', 'validate-syncpack' ]
-    steps:
-      - uses: 'actions/checkout@v4'
-        name: 'Checkout'
-        with:
-          sparse-checkout: |
-              .github/workflows/scripts
-
-      - name: 'Evaluation'
-        env:
-          REPOSITORY: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Check if project-jobs was successful. Fail for any other status, including skipped.
-          result="${{ needs.project-jobs.result }}"
-          if [[ $result != "success" ]]; then
-            echo "Generating CI jobs was not successful."
-            exit 1
-          fi
-
-          node .github/workflows/scripts/evaluate-jobs-conclusions.js
