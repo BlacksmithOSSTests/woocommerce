@@ -16,7 +16,7 @@ jobs:
     if: github.repository_owner == 'woocommerce'
     name: Nightly builds
 
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     permissions:
       contents: write
     steps:

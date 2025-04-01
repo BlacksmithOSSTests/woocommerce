@@ -25,7 +25,7 @@ jobs:
   open-pr-after-cfe-merge:
     name: 'Open PR merging release branch into trunk after CFE merge'
     if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'cherry pick to trunk'))
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     permissions:
         pull-requests: write
     steps:

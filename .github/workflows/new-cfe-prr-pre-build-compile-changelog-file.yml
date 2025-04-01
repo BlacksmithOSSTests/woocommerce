@@ -16,7 +16,7 @@ env:
 jobs:
   build-prep:
     name: Create changelog PR
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     permissions:
       contents: write
       pull-requests: write
@@ -61,7 +61,7 @@ jobs:
         uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d
 
       - name: Setup Node
-        uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
+        uses: useblacksmith/setup-node@v5
         with:
             node-version-file: .nvmrc
             cache: pnpm

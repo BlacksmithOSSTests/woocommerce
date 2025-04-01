@@ -25,7 +25,7 @@ permissions: {}
 jobs:
     code-freeze-prep:
         name: 'Verify that today is the day of the code freeze and prepare repository'
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         permissions:
             contents: write
             issues: write
@@ -50,7 +50,7 @@ jobs:
               uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d
 
             - name: Setup Node
-              uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
+              uses: useblacksmith/setup-node@v5
               with:
                   node-version-file: .nvmrc
                   cache: pnpm
@@ -118,7 +118,7 @@ jobs:
 
     notify-slack:
         name: 'Sends code freeze notification to Slack'
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         needs: code-freeze-prep
         if: ${{ inputs.skipSlackPing != true && ( needs.code-freeze-prep.outputs.isTodayAcceleratedFreeze == 'yes' || needs.code-freeze-prep.outputs.isTodayMonthlyFreeze == 'yes' ) }}
         outputs:
@@ -133,7 +133,7 @@ jobs:
               uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d
 
             - name: Setup Node
-              uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
+              uses: useblacksmith/setup-node@v5
               with:
                   node-version-file: .nvmrc
                   cache: pnpm
@@ -158,7 +158,7 @@ jobs:
 
     build-monthly:
         name: Build beta zip file
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         needs: code-freeze-prep
         if: ${{ needs.code-freeze-prep.outputs.isTodayMonthlyFreeze == 'yes' }}
         permissions:
@@ -188,7 +188,7 @@ jobs:
 
     build-a:
         name: Build accelerated zip file
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         needs: code-freeze-prep
         if: ${{ needs.code-freeze-prep.outputs.isTodayAcceleratedFreeze == 'yes' }}
         permissions:
@@ -218,7 +218,7 @@ jobs:
                   
     r2-upload-monthly:
       name: Upload Beta to R2
-      runs-on: ubuntu-latest
+      runs-on: blacksmith-4vcpu-ubuntu-2204
       needs: [ code-freeze-prep, build-monthly ]
       if: ${{ needs.code-freeze-prep.outputs.isTodayMonthlyFreeze == 'yes' }}
       steps:
@@ -244,7 +244,7 @@ jobs:
 
     slack-upload-monthly:
         name: Upload Beta to Slack
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         needs: [ code-freeze-prep, notify-slack, build-monthly ]
         if: ${{ needs.code-freeze-prep.outputs.isTodayMonthlyFreeze == 'yes' && inputs.skipSlackPing != true }}
         steps:
@@ -257,7 +257,7 @@ jobs:
               uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d
 
             - name: Setup Node
-              uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
+              uses: useblacksmith/setup-node@v5
               with:
                   node-version-file: .nvmrc
                   cache: pnpm
@@ -287,7 +287,7 @@ jobs:
 
     r2-upload-accelerated:
       name: Upload Accelerated to R2
-      runs-on: ubuntu-latest
+      runs-on: blacksmith-4vcpu-ubuntu-2204
       needs: [ code-freeze-prep, build-a ]
       if: ${{ needs.code-freeze-prep.outputs.isTodayAcceleratedFreeze == 'yes' }}
       steps:
@@ -313,7 +313,7 @@ jobs:
 
     slack-upload-accelerated:
         name: Upload Accelerated to Slack
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         needs: [ code-freeze-prep, notify-slack, build-a ]
         if: ${{ needs.code-freeze-prep.outputs.isTodayAcceleratedFreeze == 'yes' && inputs.skipSlackPing != true }}
         steps:
@@ -326,7 +326,7 @@ jobs:
               uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d
 
             - name: Setup Node
-              uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
+              uses: useblacksmith/setup-node@v5
               with:
                   node-version-file: .nvmrc
                   cache: pnpm
@@ -356,7 +356,7 @@ jobs:
 
     github-upload-monthly:
         name: Create single-zipped GitHub asset (Monthly)
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         needs: [ code-freeze-prep, build-monthly ]
         if: ${{ needs.code-freeze-prep.outputs.isTodayMonthlyFreeze == 'yes' }}
         steps:
@@ -382,7 +382,7 @@ jobs:
 
     github-upload-accelerated:
         name: Create single-zipped GitHub asset (Accelerated)
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         needs: [ code-freeze-prep, build-a ]
         if: ${{ needs.code-freeze-prep.outputs.isTodayAcceleratedFreeze == 'yes' }}
         steps:

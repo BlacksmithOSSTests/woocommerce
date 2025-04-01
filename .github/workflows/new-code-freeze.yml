@@ -13,7 +13,7 @@ env:
 jobs:
   prepare-for-code-freeze:
     name: Calculate versions and confirm repo is in a good state
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     outputs:
       nextReleaseBranch: ${{ steps.calculate-versions.outputs.nextReleaseBranch }}
       nextReleaseVersion: ${{ steps.calculate-versions.outputs.nextReleaseVersion }}
@@ -57,7 +57,7 @@ jobs:
 
   run-code-freeze:
     name: Perform code freeze
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     needs: prepare-for-code-freeze
     permissions:
       contents: write
@@ -71,7 +71,7 @@ jobs:
       - name: Setup PNPM
         uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d
       - name: Setup Node
-        uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c
+        uses: useblacksmith/setup-node@v5
         with:
             node-version-file: .nvmrc
             cache: pnpm

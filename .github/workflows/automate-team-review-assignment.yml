@@ -19,7 +19,7 @@ jobs:
     add-community-label:
         name: Add community label
         if: ${{ github.event.action == 'opened' }}
-        runs-on: ubuntu-latest
+        runs-on: blacksmith-4vcpu-ubuntu-2204
         steps:
             - name: Check if community contribution
               id: check
@@ -50,7 +50,7 @@ jobs:
     assign-reviewers:
       name: Assign reviewers
       if: ${{ github.event.pull_request && ( github.event.action == 'opened' || github.event.action == 'ready_for_review' ) }}
-      runs-on: ubuntu-latest
+      runs-on: blacksmith-4vcpu-ubuntu-2204
       steps:
         - name: Check if community contribution
           id: check
@@ -83,7 +83,7 @@ jobs:
     add-testing-instructions-review-comment:
       name: Remind reviewers to also review the testing instructions and test coverage
       if: ${{ github.event.pull_request && github.event.action == 'review_requested' }}
-      runs-on: ubuntu-latest
+      runs-on: blacksmith-4vcpu-ubuntu-2204
       steps:
         - name: Check if community contribution
           id: check
